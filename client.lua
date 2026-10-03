@@ -35,12 +35,26 @@ local function OpenZoneCreator()
 end
 
 --- Closes the Zone Creator UI
+-- Héritage RP: edit session opened by another resource through the `editZone` export (nil when none)
+local editSession = nil
+
+--- Ends the current edit session and answers the resource that opened it
+---@param zone table|nil Edited zone ({ points = {{x, y}...}, thickness, groundZ }) or nil when cancelled
+local function FinishEditSession(zone)
+    local session = editSession
+    if not session then return end
+    editSession = nil
+    TriggerEvent('sd-zonecreator:editSessionResult', session.id, zone)
+end
+
 local function CloseZoneCreator()
     isZoneCreatorOpen = false
     SetNuiFocus(false, false)
     SendNUIMessage({
         action = 'hideZoneCreator'
     })
+    -- Closing the creator during an edit session cancels it.
+    FinishEditSession(nil)
 end
 
 --- NUI Callback for closing the zone creator
@@ -563,6 +577,46 @@ RegisterNUICallback('viewZone', function(data, cb)
 end)
 
 --- Event handler for opening the zone creator from server command
+--- Héritage RP: opens the creator on zones given by another resource; « Valider » sends the zone `editKey` back.
+--- The answer comes as the local client event `sd-zonecreator:editSessionResult` (sessionId, zone|nil).
+---@param session table { sessionId = string, title = string, editKey = string, zones = { { key, name, points = {{x, y}...}, thickness, groundZ, color? } } }
+---@return boolean opened
+exports('editZone', function(session)
+    if type(session) ~= 'table' or type(session.sessionId) ~= 'string' or type(session.zones) ~= 'table' then
+        return false
+    end
+    if isViewingZone then StopZoneViewer() end
+    FinishEditSession(nil)
+
+    editSession = { id = session.sessionId }
+    isZoneCreatorOpen = true
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'openEditSession',
+        data = session
+    })
+    return true
+end)
+
+--- NUI Callback for « Valider » in an edit session
+RegisterNUICallback('editSessionResult', function(data, cb)
+    cb('ok')
+    if not editSession or type(data) ~= 'table' or data.sessionId ~= editSession.id then return end
+    local zone = data.zone
+    isZoneCreatorOpen = false
+    SetNuiFocus(false, false)
+    SendNUIMessage({
+        action = 'hideZoneCreator'
+    })
+    FinishEditSession(zone)
+end)
+
+AddEventHandler('onResourceStop', function(resourceName)
+    if resourceName ~= GetCurrentResourceName() then return end
+    if isZoneCreatorOpen then SetNuiFocus(false, false) end
+    FinishEditSession(nil)
+end)
+
 RegisterNetEvent('sd-zonecreator:openZoneCreator', function()
     OpenZoneCreator()
 end)
