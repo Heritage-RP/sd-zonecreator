@@ -98,7 +98,45 @@ interface Zone {
   thickness: number;
   fillPattern: 'solid' | 'stripes' | 'dots';
   groundZ: number | null;
+  /** Héritage RP edit session: key of the zone given by the calling resource. */
+  sessionKey?: string;
 }
+
+/** Héritage RP: a zone given by the resource that opened an edit session (see client.lua `editZone`). */
+export interface EditSessionZone {
+  key: string;
+  name: string;
+  points: { x: number; y: number }[];
+  thickness: number;
+  groundZ: number | null;
+  color?: string;
+}
+
+/** Héritage RP: another resource (hrp-zones) opened the creator to edit one zone and get it back. */
+export interface EditSession {
+  sessionId: string;
+  title: string;
+  /** Key of the zone sent back on « Valider »; the other zones are only shown for reference. */
+  editKey: string;
+  zones: EditSessionZone[];
+}
+
+const sessionZones = (session: EditSession): Zone[] =>
+  session.zones.map((z, i) => ({
+    id: `session-${z.key}`,
+    name: z.key === session.editKey ? z.name : `${z.name} (référence)`,
+    points: z.points.map((p, j) => ({
+      id: `point-${z.key}-${j}`,
+      gtaCoords: { x: p.x, y: p.y, z: null },
+      latLng: gtaToLatLng(p.x, p.y)
+    })),
+    color: z.color ?? ZONE_COLORS[i % ZONE_COLORS.length],
+    visible: true,
+    thickness: z.thickness,
+    fillPattern: 'solid',
+    groundZ: z.groundZ,
+    sessionKey: z.key
+  }));
 
 interface HistoryState {
   zones: Zone[];
@@ -107,6 +145,7 @@ interface HistoryState {
 
 interface ZoneCreatorProps {
   onClose: () => void;
+  session?: EditSession | null;
 }
 
 const ZONE_COLORS = [
@@ -116,7 +155,7 @@ const ZONE_COLORS = [
 
 const FILL_PATTERNS = ['solid', 'stripes', 'dots'] as const;
 
-const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose }) => {
+const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose, session = null }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
@@ -128,11 +167,11 @@ const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose }) => {
   const gridLayerRef = useRef<L.LayerGroup | null>(null);
   const isZoomingRef = useRef(false);
 
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
+  const [zones, setZones] = useState<Zone[]>(() => (session ? sessionZones(session) : []));
+  const [activeZoneId, setActiveZoneId] = useState<string | null>(() => (session ? `session-${session.editKey}` : null));
   const [isCreatingZone, setIsCreatingZone] = useState(false);
   const [newZoneName, setNewZoneName] = useState('');
-  const [expandedZones, setExpandedZones] = useState<Set<string>>(new Set());
+  const [expandedZones, setExpandedZones] = useState<Set<string>>(() => new Set(session ? [`session-${session.editKey}`] : []));
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [cursorCoords, setCursorCoords] = useState<{ x: number; y: number } | null>(null);
@@ -548,6 +587,16 @@ const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose }) => {
       map.remove();
       mapRef.current = null;
     };
+  }, []);
+
+  // Héritage RP edit session: start on the edited zone.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !session) return;
+    const edited = session.zones.find(z => z.key === session.editKey);
+    const all = (edited && edited.points.length > 0 ? [edited] : session.zones).flatMap(z => z.points);
+    if (all.length === 0) return;
+    map.fitBounds(L.latLngBounds(all.map(p => gtaToLatLng(p.x, p.y))), { padding: [80, 80], maxZoom: 2 });
   }, []);
 
   useEffect(() => {
@@ -1422,6 +1471,28 @@ const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose }) => {
     onClose();
   };
 
+  // Héritage RP edit session: send the edited zone back (client.lua closes the creator and answers the caller).
+  const handleValidateSession = () => {
+    if (!session) return;
+    const zone = zones.find(z => z.sessionKey === session.editKey);
+    if (!zone || zone.points.length < 3) {
+      notify.error('La zone doit avoir au moins 3 points');
+      return;
+    }
+    fetch(`https://${GetParentResourceName()}/editSessionResult`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: session.sessionId,
+        zone: {
+          points: zone.points.map(p => ({ x: p.gtaCoords.x, y: p.gtaCoords.y })),
+          thickness: zone.thickness,
+          groundZ: zone.groundZ
+        }
+      })
+    }).catch(() => {});
+  };
+
   // Jump to player position
   const handleJumpToPlayer = () => {
     if (initialPlayerPosition && mapRef.current) {
@@ -1435,6 +1506,26 @@ const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose }) => {
     <div className="zone-creator" style={{ display: isViewingZone ? 'none' : 'flex' }}>
       {/* Left Panel */}
       <div className="zone-panel">
+        {session && (
+          <div className="zone-session">
+            <div className="zone-session-title">
+              <Edit3 size={14} />
+              <span>{session.title}</span>
+            </div>
+            <p className="zone-session-hint">
+              Seule la zone « {session.zones.find(z => z.key === session.editKey)?.name} » est renvoyée. Réglez sa hauteur et
+              son sol (Ground Z) ici.
+            </p>
+            <div className="zone-session-actions">
+              <button className="zone-btn zone-btn-confirm zone-session-btn" onClick={handleValidateSession}>
+                <Check size={14} /><span>Valider</span>
+              </button>
+              <button className="zone-btn zone-btn-cancel zone-session-btn" onClick={handleClose}>
+                <X size={14} /><span>Annuler</span>
+              </button>
+            </div>
+          </div>
+        )}
         <div className="zone-panel-header">
           <div className="zone-panel-title">
             <Layers size={18} />

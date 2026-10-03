@@ -19,6 +19,29 @@
 
 If you have any issues or suggestions, feel free to PR, create an issue or join my discord: https://discord.gg/FzPehMQaBQ
 
+## Héritage RP fork
+
+Fork used by [Héritage RP](https://github.com/Heritage-RP) as the drawing tool of **hrp-zones** (`/zones`). On top of
+upstream it adds an **edit session**: another resource opens the creator on its own zones and gets the edited zone back.
+
+```lua
+-- client
+exports['sd-zonecreator']:editZone({
+    sessionId = 'unique-id',
+    title = 'Rad_NORD — zone initiale',
+    editKey = 'start',                      -- the zone sent back on « Valider »
+    zones = {                               -- the others are shown for reference
+        { key = 'start', name = 'Rad_NORD', points = { { x = 0, y = 0 }, ... }, thickness = 1030, groundZ = 0.0 },
+    },
+})
+AddEventHandler('sd-zonecreator:editSessionResult', function(sessionId, zone)
+    -- zone = { points = { { x, y }, ... }, thickness, groundZ } or nil when cancelled (Annuler, Échap, resource stop)
+end)
+```
+
+The standalone `/zonecreator` tool is unchanged. Build: `cd web && pnpm install --frozen-lockfile && pnpm build`
+(PRODUCTION-SERVER Devtools does it on update).
+
 ## 📋 Dependencies
 
 - [ox_lib](https://github.com/overextended/ox_lib)
