@@ -1,7 +1,5 @@
 if not LoadResourceFile(GetCurrentResourceName(), 'web/build/index.html') then
-    print('^1[sd-zonecreator] ERROR: web/build folder not found!^0')
-    print('^1[sd-zonecreator] You likely downloaded the source code instead of the release.^0')
-    print('^1[sd-zonecreator] Please download the latest release from: https://github.com/Samuels-Development/sd-zonecreator/releases/latest^0')
+    lib.print.error('web/build folder not found! You likely downloaded the source code instead of the release. Please download the latest release from: https://github.com/Samuels-Development/sd-zonecreator/releases/latest')
     return
 end
 
