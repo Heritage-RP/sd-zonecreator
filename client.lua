@@ -132,12 +132,30 @@ end
 ---@param x number X coordinate
 ---@param y number Y coordinate
 ---@return number|nil Ground Z coordinate or nil if not found
+-- Héritage RP: player state saved while a ground Z lookup has the ped hidden, frozen and teleported (nil otherwise),
+-- so that onResourceStop can put the player back.
+local groundSearch = nil
+
+--- Puts the ped back where and how it was before the ground Z lookup
+local function RestoreAfterGroundSearch()
+    local saved = groundSearch
+    if not saved then return end
+    groundSearch = nil
+    local ped = PlayerPedId()
+    SetEntityCoords(ped, saved.coords.x, saved.coords.y, saved.coords.z, false, false, false, false)
+    SetEntityHeading(ped, saved.heading)
+    SetEntityCollision(ped, true, true)
+    FreezeEntityPosition(ped, false)
+    SetEntityVisible(ped, saved.visible, false)
+end
+
 local function GetGroundZComprehensive(x, y)
     local ped = PlayerPedId()
     local wasVisible = IsEntityVisible(ped)
     local originalCoords = GetEntityCoords(ped)
     local originalHeading = GetEntityHeading(ped)
     local foundZ = nil
+    groundSearch = { coords = originalCoords, heading = originalHeading, visible = wasVisible }
 
     SetEntityVisible(ped, false, false)
     FreezeEntityPosition(ped, true)
@@ -208,11 +226,7 @@ local function GetGroundZComprehensive(x, y)
     end
 
     Wait(100)
-    SetEntityCoords(ped, originalCoords.x, originalCoords.y, originalCoords.z, false, false, false, false)
-    SetEntityHeading(ped, originalHeading)
-    SetEntityCollision(ped, true, true)
-    FreezeEntityPosition(ped, false)
-    SetEntityVisible(ped, wasVisible, false)
+    RestoreAfterGroundSearch()
 
     return foundZ
 end
@@ -609,8 +623,22 @@ RegisterNUICallback('editSessionResult', function(data, cb)
     FinishEditSession(zone)
 end)
 
+--- Héritage RP: the resource that opened the edit session gives up on it (its panel closed, logout, resource stop):
+--- closes the creator and its viewer, answers nil. Ignored when `sessionId` is not the current session.
+---@param sessionId string
+---@return boolean closed
+exports('cancelEdit', function(sessionId)
+    if not editSession or sessionId ~= editSession.id then return false end
+    if isViewingZone then StopZoneViewer() end
+    CloseZoneCreator()
+    return true
+end)
+
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
+    -- Héritage RP: never leave the player invisible, frozen, without collision or behind the viewer camera.
+    RestoreAfterGroundSearch()
+    if isViewingZone then StopZoneViewer() end -- after: it puts the ped back where it was before the viewer
     if isZoneCreatorOpen then SetNuiFocus(false, false) end
     FinishEditSession(nil)
 end)
