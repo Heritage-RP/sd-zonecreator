@@ -37,7 +37,12 @@ exports['sd-zonecreator']:editZone({
 AddEventHandler('sd-zonecreator:editSessionResult', function(sessionId, zone)
     -- zone = { points = { { x, y }, ... }, thickness, groundZ } or nil when cancelled (Annuler, Échap, resource stop)
 end)
+-- the caller gives up (its panel closed, logout, resource stop): closes the creator and its viewer, answers nil
+exports['sd-zonecreator']:cancelEdit('unique-id')
 ```
+
+Stopping the resource also puts the player back (visible, unfrozen, with collision, at their position) when the zone
+viewer camera or a ground Z lookup was running.
 
 The standalone `/zonecreator` tool is unchanged. Build: `cd web && pnpm install --frozen-lockfile && pnpm build`
 (PRODUCTION-SERVER Devtools does it on update).
