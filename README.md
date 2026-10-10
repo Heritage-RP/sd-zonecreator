@@ -46,6 +46,7 @@ viewer camera or a ground Z lookup was running.
 
 The standalone `/zonecreator` tool is unchanged. Build: `cd web && pnpm install --frozen-lockfile && pnpm build`
 (PRODUCTION-SERVER Devtools does it on update).
+Tests: `./tests/run.sh` (Lua 5.4 specs in docker, `tests/lua/*_spec.lua`; run by `just test` in PRODUCTION-SERVER).
 
 ## 📋 Dependencies
 
