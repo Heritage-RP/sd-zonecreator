@@ -38,35 +38,13 @@ import {
 import gtaMap from '../assets/maps/gta_map.jpg';
 import './ZoneCreator.css';
 import NumberInput from './NumberInput';
+import { GTA_BOUNDS, IMG_HEIGHT, IMG_WIDTH, gtaToLatLng, latLngToGta } from './mapCoords';
 import Notification, { useNotifications } from './Notification';
 
-const IMG_WIDTH = 4096;
-const IMG_HEIGHT = 6144;
+// Héritage RP: map constants and GTA ↔ map conversions moved to mapCoords.ts (shared with PointPicker).
 const GRID_SIZE = 10;
 
-const GTA_BOUNDS = {
-  minX: -4000,
-  maxX: 4500,
-  minY: -4000,
-  maxY: 8000
-};
-
-const SCALE_X = 0.454685;
-const SCALE_Y = -0.454830;
-const OFFSET_X = 1882.72;
-const OFFSET_Y = 3826.58;
-
-export const gtaToLatLng = (gtaX: number, gtaY: number): [number, number] => {
-  const lng = gtaX * SCALE_X + OFFSET_X;
-  const lat = IMG_HEIGHT - (gtaY * SCALE_Y + OFFSET_Y);
-  return [lat, lng];
-};
-
-export const latLngToGta = (lat: number, lng: number): { x: number; y: number } => {
-  const x = (lng - OFFSET_X) / SCALE_X;
-  const y = (IMG_HEIGHT - lat - OFFSET_Y) / SCALE_Y;
-  return { x, y };
-};
+export { gtaToLatLng, latLngToGta };
 
 const snapToGrid = (value: number, gridSize: number): number => {
   return Math.round(value / gridSize) * gridSize;

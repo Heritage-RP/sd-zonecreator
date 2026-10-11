@@ -45,14 +45,27 @@ local function FinishEditSession(zone)
     TriggerEvent('sd-zonecreator:editSessionResult', session.id, zone)
 end
 
+-- Héritage RP: pick session opened by another resource through the `pickPoint` export (nil when none)
+local pickSession = nil
+
+--- Ends the current pick session and answers the resource that opened it
+---@param result table|nil { kind = 'marker', key } or { kind = 'point', x, y }, nil when cancelled
+local function FinishPickSession(result)
+    local session = pickSession
+    if not session then return end
+    pickSession = nil
+    TriggerEvent('sd-zonecreator:pickSessionResult', session.id, result)
+end
+
 local function CloseZoneCreator()
     isZoneCreatorOpen = false
     SetNuiFocus(false, false)
     SendNUIMessage({
         action = 'hideZoneCreator'
     })
-    -- Closing the creator during an edit session cancels it.
+    -- Closing the creator during an edit or pick session cancels it.
     FinishEditSession(nil)
+    FinishPickSession(nil)
 end
 
 --- NUI Callback for closing the zone creator
@@ -599,6 +612,7 @@ exports('editZone', function(session)
     end
     if isViewingZone then StopZoneViewer() end
     FinishEditSession(nil)
+    FinishPickSession(nil)
 
     editSession = { id = session.sessionId }
     isZoneCreatorOpen = true
@@ -623,15 +637,69 @@ RegisterNUICallback('editSessionResult', function(data, cb)
     FinishEditSession(zone)
 end)
 
---- Héritage RP: the resource that opened the edit session gives up on it (its panel closed, logout, resource stop):
---- closes the creator and its viewer, answers nil. Ignored when `sessionId` is not the current session.
+--- Héritage RP: the resource that opened the edit or pick session gives up on it (its panel closed, logout, resource
+--- stop): closes the creator and its viewer, answers nil. Ignored when `sessionId` is not the current session.
 ---@param sessionId string
 ---@return boolean closed
 exports('cancelEdit', function(sessionId)
-    if not editSession or sessionId ~= editSession.id then return false end
+    local current = (editSession and editSession.id) or (pickSession and pickSession.id)
+    if not current or sessionId ~= current then return false end
     if isViewingZone then StopZoneViewer() end
     CloseZoneCreator()
     return true
+end)
+
+--- Héritage RP: pick session — the satellite map shows the caller's markers; staff click one of them (`selectMarkers`)
+--- or a point of the map then « Valider » (`pick`). The answer comes as the local client event
+--- `sd-zonecreator:pickSessionResult` (sessionId, result|nil): { kind = 'marker', key } or { kind = 'point', x, y }.
+--- No ground Z here: the caller computes it where it needs it.
+---@param session table { sessionId = string, title = string, hint = string?, pick = boolean?, selectMarkers = boolean?, selectedKey = string?, markers = { { key, name, x, y, color?, dimmed? } } }
+---@return boolean opened
+exports('pickPoint', function(session)
+    if type(session) ~= 'table' or type(session.sessionId) ~= 'string' or type(session.markers) ~= 'table' then
+        return false
+    end
+    if isViewingZone then StopZoneViewer() end
+    FinishEditSession(nil)
+    FinishPickSession(nil)
+
+    pickSession = { id = session.sessionId }
+    isZoneCreatorOpen = true
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'openPickSession',
+        data = session
+    })
+    return true
+end)
+
+--- Checked shape of a pick result sent by the NUI (nil when malformed)
+---@param result any
+---@return table|nil
+local function ParsePickResult(result)
+    if type(result) ~= 'table' then return nil end
+    if result.kind == 'marker' and type(result.key) == 'string' then
+        return { kind = 'marker', key = result.key }
+    end
+    local x, y = tonumber(result.x), tonumber(result.y)
+    if result.kind == 'point' and x and y and x == x and y == y and math.abs(x) < 1e6 and math.abs(y) < 1e6 then
+        return { kind = 'point', x = x, y = y }
+    end
+    return nil
+end
+
+--- NUI Callback for a marker clicked or « Valider » in a pick session
+RegisterNUICallback('pickSessionResult', function(data, cb)
+    cb('ok')
+    if not pickSession or type(data) ~= 'table' or data.sessionId ~= pickSession.id then return end
+    local result = ParsePickResult(data.result)
+    if not result then return end
+    isZoneCreatorOpen = false
+    SetNuiFocus(false, false)
+    SendNUIMessage({
+        action = 'hideZoneCreator'
+    })
+    FinishPickSession(result)
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
@@ -641,6 +709,7 @@ AddEventHandler('onResourceStop', function(resourceName)
     if isViewingZone then StopZoneViewer() end -- after: it puts the ped back where it was before the viewer
     if isZoneCreatorOpen then SetNuiFocus(false, false) end
     FinishEditSession(nil)
+    FinishPickSession(nil)
 end)
 
 RegisterNetEvent('sd-zonecreator:openZoneCreator', function()

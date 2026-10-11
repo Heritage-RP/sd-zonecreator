@@ -123,6 +123,13 @@ local function load(ped)
         end
         return results
     end
+    env.picks = function()
+        local results = {}
+        for _, e in ipairs(env.events) do
+            if e.name == 'sd-zonecreator:pickSessionResult' then results[#results + 1] = e.args end
+        end
+        return results
+    end
     env.has = function(action)
         for _, a in ipairs(env.messages) do if a == action then return true end end
         return false
@@ -222,6 +229,66 @@ scenario(function()
     check('stop during the viewer: player back where and as he was', env.restored(true))
     check('stop during the viewer: NUI focus released last', env.lastFocus() == false)
     check('stop during the viewer: session answered nil', #env.results() == 1 and env.results()[1][2] == nil)
+end)
+
+-- 4. pick session (hrp-admin-menu « PNJ » tab, PRODUCTION-SERVER#392): markers on the map, a marker or a point back
+local PICK = { sessionId = 'p1', title = 'PNJ', pick = true, markers = { { key = 'hrp-counters:1', name = 'A', x = 1, y = 2 } } }
+
+scenario(function()
+    local env = load()
+    check('pickPoint is exported', type(env.exports.pickPoint) == 'function')
+    check('pickPoint: malformed session refused', env.exports.pickPoint({ sessionId = 'p1' }) == false
+        and env.exports.pickPoint('p1') == false and #env.focus == 0)
+    check('pickPoint opens the map with the focus', env.exports.pickPoint(PICK) == true and env.lastFocus() == true
+        and env.has('openPickSession'))
+    env.callNui('pickSessionResult', { sessionId = 'other', result = { kind = 'point', x = 5, y = 6 } })
+    check('result of another session: ignored', #env.picks() == 0 and env.lastFocus() == true)
+    env.callNui('pickSessionResult', { sessionId = 'p1', result = { kind = 'point', x = 'abc', y = 6 } })
+    env.callNui('pickSessionResult', { sessionId = 'p1', result = { kind = 'point', x = 0 / 0, y = 6 } })
+    env.callNui('pickSessionResult', { sessionId = 'p1', result = { kind = 'marker', key = 12 } })
+    env.callNui('pickSessionResult', { sessionId = 'p1', result = { kind = 'teleport' } })
+    check('malformed results: ignored, the map stays open', #env.picks() == 0 and env.lastFocus() == true)
+    env.callNui('pickSessionResult', { sessionId = 'p1', result = { kind = 'point', x = 5.5, y = -6, extra = true } })
+    local picks = env.picks()
+    check('point picked: answered once with x / y only', #picks == 1 and picks[1][1] == 'p1'
+        and picks[1][2].kind == 'point' and picks[1][2].x == 5.5 and picks[1][2].y == -6 and picks[1][2].extra == nil)
+    check('point picked: map hidden, focus released', env.has('hideZoneCreator') and env.lastFocus() == false)
+    env.callNui('pickSessionResult', { sessionId = 'p1', result = { kind = 'point', x = 1, y = 1 } })
+    check('a second answer is ignored', #env.picks() == 1)
+    check('no edit session answer', #env.results() == 0)
+end)
+
+scenario(function()
+    local env = load()
+    env.exports.pickPoint(PICK)
+    env.callNui('pickSessionResult', { sessionId = 'p1', result = { kind = 'marker', key = 'hrp-counters:1' } })
+    local picks = env.picks()
+    check('marker clicked: answered with its key', #picks == 1 and picks[1][2].kind == 'marker'
+        and picks[1][2].key == 'hrp-counters:1')
+end)
+
+scenario(function()
+    local env = load()
+    env.exports.pickPoint(PICK)
+    check('cancelEdit closes a pick session', env.exports.cancelEdit('other') == false and env.exports.cancelEdit('p1') == true)
+    local picks = env.picks()
+    check('cancelEdit: the pick session answers nil once', #picks == 1 and picks[1][1] == 'p1' and picks[1][2] == nil
+        and picks[1].n == 2 and env.lastFocus() == false)
+end)
+
+scenario(function()
+    local env = load()
+    env.exports.pickPoint(PICK)
+    env.callNui('closeZoneCreator', {})
+    check('Échap / Annuler: the pick session answers nil', #env.picks() == 1 and env.picks()[1][2] == nil)
+    env.exports.pickPoint(PICK)
+    env.exports.editZone(SESSION)
+    check('an edit session replaces a pick session (nil answer)', #env.picks() == 2 and env.picks()[2][2] == nil)
+    env.exports.pickPoint({ sessionId = 'p2', markers = {} })
+    check('a pick session replaces an edit session (nil answer)', #env.results() == 1 and env.results()[1][2] == nil)
+    env.handlers.onResourceStop(RESOURCE)
+    check('resource stop: the pick session answers nil, focus released', #env.picks() == 3
+        and env.picks()[3][1] == 'p2' and env.picks()[3][2] == nil and env.lastFocus() == false)
 end)
 
 if failures > 0 then

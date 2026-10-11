@@ -41,6 +41,28 @@ end)
 exports['sd-zonecreator']:cancelEdit('unique-id')
 ```
 
+**Pick session** (hrp-admin-menu « PNJ » tab, PRODUCTION-SERVER#392): the same satellite map shows the caller's markers;
+staff click a marker or a point of the map, then « Valider ». No ground Z is computed: the caller does it where it needs
+it.
+
+```lua
+-- client
+exports['sd-zonecreator']:pickPoint({
+    sessionId = 'unique-id',
+    title = 'PNJ — placer « Marchand »',
+    hint = 'Cliquez le point voulu, puis Valider',
+    pick = true,                            -- a point of the map can be picked and validated
+    selectMarkers = false,                  -- true: clicking a marker answers with its key
+    selectedKey = 'hrp-counters:3',         -- optional: centred and highlighted
+    markers = { { key = 'hrp-counters:3', name = 'Marchand', x = 120.5, y = -830.2, color = '#f59e0b', dimmed = false } },
+})
+AddEventHandler('sd-zonecreator:pickSessionResult', function(sessionId, result)
+    -- { kind = 'marker', key } or { kind = 'point', x, y }; nil when cancelled (Annuler, Échap, cancelEdit, resource stop)
+end)
+```
+`cancelEdit(sessionId)` also closes a pick session. Opening an edit session cancels a pick session and the reverse
+(the replaced one answers nil).
+
 Stopping the resource also puts the player back (visible, unfrozen, with collision, at their position) when the zone
 viewer camera or a ground Z lookup was running.
 
