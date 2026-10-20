@@ -12,9 +12,9 @@ const GetParentResourceName = (): string => {
 
 const App: React.FC = () => {
   const [visible, setVisible] = useState(false);
-  // Héritage RP: set when another resource (hrp-zones) opened the creator to edit one of its zones.
+  // Fork patch: set when another resource (hrp-zones) opened the creator to edit one of its zones.
   const [session, setSession] = useState<EditSession | null>(null);
-  // Héritage RP: set when another resource (hrp-admin-menu) opened the map to pick a marker or a point.
+  // Fork patch: set when another resource (hrp-admin-menu) opened the map to pick a marker or a point.
   const [pick, setPick] = useState<PickSession | null>(null);
 
   useEffect(() => {

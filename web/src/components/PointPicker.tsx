@@ -1,7 +1,7 @@
 /**
- * Héritage RP pick session (client.lua `pickPoint`): the satellite map with markers given by another resource
- * (hrp-admin-menu « PNJ » tab). Staff click a marker (`selectMarkers`) or a point of the map then « Valider »
- * (`pick`); the answer goes back through the `pickSessionResult` NUI callback. Escape / « Annuler » close the map
+ * Fork patch: pick session (client.lua `pickPoint`): the satellite map with markers given by another resource
+ * (hrp-admin-menu « PNJ » tab). Staff click a marker (`selectMarkers`) or a point of the map then Confirm
+ * (`pick`); the answer goes back through the `pickSessionResult` NUI callback. Escape / Cancel close the map
  * (App.tsx → closeZoneCreator), which answers nil.
  */
 
@@ -13,6 +13,7 @@ import gtaMap from '../assets/maps/gta_map.jpg';
 import './ZoneCreator.css';
 import './PointPicker.css';
 import { IMG_HEIGHT, IMG_WIDTH, gtaToLatLng, latLngToGta } from './mapCoords';
+import { type SessionLabels, sessionLabels } from './sessionLabels';
 
 export interface PickMarker {
   key: string;
@@ -35,6 +36,7 @@ export interface PickSession {
   /** Marker to centre on and highlight. */
   selectedKey?: string;
   markers: PickMarker[];
+  labels?: Partial<SessionLabels>;
 }
 
 export type PickResult = { kind: 'marker'; key: string } | { kind: 'point'; x: number; y: number };
@@ -65,6 +67,7 @@ interface Props {
 }
 
 const PointPicker: React.FC<Props> = ({ session, onClose }) => {
+  const labels = sessionLabels(session.labels);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const candidateRef = useRef<L.Marker | null>(null);
@@ -225,11 +228,11 @@ const PointPicker: React.FC<Props> = ({ session, onClose }) => {
             disabled={!candidate}
             onClick={() => candidate && send({ kind: 'point', x: candidate.x, y: candidate.y })}
           >
-            <Check size={16} /> {candidate ? `Valider ${candidate.x}, ${candidate.y}` : 'Cliquez un point'}
+            <Check size={16} /> {candidate ? `${labels.confirm} ${candidate.x}, ${candidate.y}` : labels.clickPoint}
           </button>
         )}
         <button type="button" className="pick-button" onClick={onClose}>
-          <X size={16} /> Annuler
+          <X size={16} /> {labels.cancel}
         </button>
       </header>
       <div ref={containerRef} className="pick-map" />

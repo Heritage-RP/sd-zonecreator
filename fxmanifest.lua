@@ -26,6 +26,7 @@ files {
     'web/build/assets/*.js',
     'web/build/assets/*.jpg',
     'web/build/assets/*.png',
+    'locales/*.json', -- fork patch: labels of the edit / pick sessions (ox_lib locale, `ox:locale`)
 }
 
 lua54 'yes'

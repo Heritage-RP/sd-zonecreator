@@ -1,6 +1,6 @@
 /**
  * Satellite map image size and GTA world ↔ map (Leaflet CRS.Simple) conversions, shared by the zone creator and the
- * Héritage RP pick session (PointPicker). Values from upstream ZoneCreator.tsx, unchanged.
+ * Fork patch: pick session (PointPicker). Values from upstream ZoneCreator.tsx, unchanged.
  */
 
 export const IMG_WIDTH = 4096;

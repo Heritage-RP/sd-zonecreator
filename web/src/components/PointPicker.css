@@ -1,4 +1,4 @@
-/* Héritage RP pick session (PointPicker.tsx): full-screen map, one bar on top. Same palette as the zone creator. */
+/* Fork patch: pick session (PointPicker.tsx): full-screen map, one bar on top. Same palette as the zone creator. */
 .pick-root {
   position: fixed;
   inset: 0;

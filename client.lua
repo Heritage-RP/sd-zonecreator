@@ -33,7 +33,7 @@ local function OpenZoneCreator()
 end
 
 --- Closes the Zone Creator UI
--- Héritage RP: edit session opened by another resource through the `editZone` export (nil when none)
+-- Fork patch: edit session opened by another resource through the `editZone` export (nil when none)
 local editSession = nil
 
 --- Ends the current edit session and answers the resource that opened it
@@ -45,7 +45,7 @@ local function FinishEditSession(zone)
     TriggerEvent('sd-zonecreator:editSessionResult', session.id, zone)
 end
 
--- Héritage RP: pick session opened by another resource through the `pickPoint` export (nil when none)
+-- Fork patch: pick session opened by another resource through the `pickPoint` export (nil when none)
 local pickSession = nil
 
 --- Ends the current pick session and answers the resource that opened it
@@ -145,7 +145,7 @@ end
 ---@param x number X coordinate
 ---@param y number Y coordinate
 ---@return number|nil Ground Z coordinate or nil if not found
--- Héritage RP: player state saved while a ground Z lookup has the ped hidden, frozen and teleported (nil otherwise),
+-- Fork patch: player state saved while a ground Z lookup has the ped hidden, frozen and teleported (nil otherwise),
 -- so that onResourceStop can put the player back.
 local groundSearch = nil
 
@@ -601,8 +601,26 @@ RegisterNUICallback('viewZone', function(data, cb)
     cb('ok')
 end)
 
+lib.locale()
+
+--- Fork patch: the labels of the edit and pick sessions, in ox_lib's locale (`ox:locale`, locales/*.json)
+---@param session table
+---@return table session the same session with `labels`
+local function WithLabels(session)
+    local copy = {}
+    for key, value in pairs(session) do copy[key] = value end
+    copy.labels = {
+        confirm = locale('session_confirm'),
+        cancel = locale('session_cancel'),
+        clickPoint = locale('session_click_point'),
+        minPoints = locale('session_min_points'),
+        reference = locale('session_reference'),
+    }
+    return copy
+end
+
 --- Event handler for opening the zone creator from server command
---- Héritage RP: opens the creator on zones given by another resource; « Valider » sends the zone `editKey` back.
+--- Fork patch: opens the creator on zones given by another resource; Confirm sends the zone `editKey` back.
 --- The answer comes as the local client event `sd-zonecreator:editSessionResult` (sessionId, zone|nil).
 ---@param session table { sessionId = string, title = string, editKey = string, zones = { { key, name, points = {{x, y}...}, thickness, groundZ, color? } } }
 ---@return boolean opened
@@ -619,12 +637,12 @@ exports('editZone', function(session)
     SetNuiFocus(true, true)
     SendNUIMessage({
         action = 'openEditSession',
-        data = session
+        data = WithLabels(session)
     })
     return true
 end)
 
---- NUI Callback for « Valider » in an edit session
+--- NUI Callback for Confirm in an edit session
 RegisterNUICallback('editSessionResult', function(data, cb)
     cb('ok')
     if not editSession or type(data) ~= 'table' or data.sessionId ~= editSession.id then return end
@@ -637,7 +655,7 @@ RegisterNUICallback('editSessionResult', function(data, cb)
     FinishEditSession(zone)
 end)
 
---- Héritage RP: the resource that opened the edit or pick session gives up on it (its panel closed, logout, resource
+--- Fork patch: the resource that opened the edit or pick session gives up on it (its panel closed, logout, resource
 --- stop): closes the creator and its viewer, answers nil. Ignored when `sessionId` is not the current session.
 ---@param sessionId string
 ---@return boolean closed
@@ -649,8 +667,8 @@ exports('cancelEdit', function(sessionId)
     return true
 end)
 
---- Héritage RP: pick session — the satellite map shows the caller's markers; staff click one of them (`selectMarkers`)
---- or a point of the map then « Valider » (`pick`). The answer comes as the local client event
+--- Fork patch: pick session — the satellite map shows the caller's markers; staff click one of them (`selectMarkers`)
+--- or a point of the map then Confirm (`pick`). The answer comes as the local client event
 --- `sd-zonecreator:pickSessionResult` (sessionId, result|nil): { kind = 'marker', key } or { kind = 'point', x, y }.
 --- No ground Z here: the caller computes it where it needs it.
 ---@param session table { sessionId = string, title = string, hint = string?, pick = boolean?, selectMarkers = boolean?, selectedKey = string?, markers = { { key, name, x, y, color?, dimmed? } } }
@@ -668,7 +686,7 @@ exports('pickPoint', function(session)
     SetNuiFocus(true, true)
     SendNUIMessage({
         action = 'openPickSession',
-        data = session
+        data = WithLabels(session)
     })
     return true
 end)
@@ -688,7 +706,7 @@ local function ParsePickResult(result)
     return nil
 end
 
---- NUI Callback for a marker clicked or « Valider » in a pick session
+--- NUI Callback for a marker clicked or Confirm in a pick session
 RegisterNUICallback('pickSessionResult', function(data, cb)
     cb('ok')
     if not pickSession or type(data) ~= 'table' or data.sessionId ~= pickSession.id then return end
@@ -704,7 +722,7 @@ end)
 
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
-    -- Héritage RP: never leave the player invisible, frozen, without collision or behind the viewer camera.
+    -- Fork patch: never leave the player invisible, frozen, without collision or behind the viewer camera.
     RestoreAfterGroundSearch()
     if isViewingZone then StopZoneViewer() end -- after: it puts the ped back where it was before the viewer
     if isZoneCreatorOpen then SetNuiFocus(false, false) end
