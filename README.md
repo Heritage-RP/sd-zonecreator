@@ -19,49 +19,51 @@
 
 If you have any issues or suggestions, feel free to PR, create an issue or join my discord: https://discord.gg/FzPehMQaBQ
 
-## Héritage RP fork
+## Fork (Heritage-RP)
 
-Fork used by [Héritage RP](https://github.com/Heritage-RP) as the drawing tool of **hrp-zones** (`/zones`). On top of
-upstream it adds an **edit session**: another resource opens the creator on its own zones and gets the edited zone back.
+Fork used by the core of [Heritage-RP/PRODUCTION-SERVER](https://github.com/Heritage-RP) as the drawing tool of
+**hrp-zones** (`/zones`); its patches are listed in [PATCHES.md](PATCHES.md). On top of upstream it adds an **edit
+session**: another resource opens the creator on its own zones and gets the edited zone back.
 
 ```lua
 -- client
 exports['sd-zonecreator']:editZone({
     sessionId = 'unique-id',
-    title = 'Rad_NORD — zone initiale',
-    editKey = 'start',                      -- the zone sent back on « Valider »
+    title = 'North — starting zone',
+    editKey = 'start',                      -- the zone sent back on Confirm
     zones = {                               -- the others are shown for reference
-        { key = 'start', name = 'Rad_NORD', points = { { x = 0, y = 0 }, ... }, thickness = 1030, groundZ = 0.0 },
+        { key = 'start', name = 'North', points = { { x = 0, y = 0 }, ... }, thickness = 1030, groundZ = 0.0 },
     },
 })
 AddEventHandler('sd-zonecreator:editSessionResult', function(sessionId, zone)
-    -- zone = { points = { { x, y }, ... }, thickness, groundZ } or nil when cancelled (Annuler, Échap, resource stop)
+    -- zone = { points = { { x, y }, ... }, thickness, groundZ } or nil when cancelled (Cancel, Escape, resource stop)
 end)
 -- the caller gives up (its panel closed, logout, resource stop): closes the creator and its viewer, answers nil
 exports['sd-zonecreator']:cancelEdit('unique-id')
 ```
 
-**Pick session** (hrp-admin-menu « PNJ » tab, PRODUCTION-SERVER#392): the same satellite map shows the caller's markers;
-staff click a marker or a point of the map, then « Valider ». No ground Z is computed: the caller does it where it needs
+**Pick session** (hrp-admin-menu NPC tab, PRODUCTION-SERVER#392): the same satellite map shows the caller's markers;
+staff click a marker or a point of the map, then Confirm. No ground Z is computed: the caller does it where it needs
 it.
 
 ```lua
 -- client
 exports['sd-zonecreator']:pickPoint({
     sessionId = 'unique-id',
-    title = 'PNJ — placer « Marchand »',
-    hint = 'Cliquez le point voulu, puis Valider',
+    title = 'NPC — place "Trader"',
+    hint = 'Click the point, then Confirm',
     pick = true,                            -- a point of the map can be picked and validated
     selectMarkers = false,                  -- true: clicking a marker answers with its key
     selectedKey = 'hrp-counters:3',         -- optional: centred and highlighted
-    markers = { { key = 'hrp-counters:3', name = 'Marchand', x = 120.5, y = -830.2, color = '#f59e0b', dimmed = false } },
+    markers = { { key = 'hrp-counters:3', name = 'Trader', x = 120.5, y = -830.2, color = '#f59e0b', dimmed = false } },
 })
 AddEventHandler('sd-zonecreator:pickSessionResult', function(sessionId, result)
-    -- { kind = 'marker', key } or { kind = 'point', x, y }; nil when cancelled (Annuler, Échap, cancelEdit, resource stop)
+    -- { kind = 'marker', key } or { kind = 'point', x, y }; nil when cancelled (Cancel, Escape, cancelEdit, resource stop)
 end)
 ```
 `cancelEdit(sessionId)` also closes a pick session. Opening an edit session cancels a pick session and the reverse
-(the replaced one answers nil).
+(the replaced one answers nil). The session buttons and messages follow ox_lib's locale (`setr ox:locale fr`,
+`locales/*.json`); `title` and `hint` are the caller's.
 
 Stopping the resource also puts the player back (visible, unfrozen, with collision, at their position) when the zone
 viewer camera or a ground Z lookup was running.

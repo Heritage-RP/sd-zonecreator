@@ -40,8 +40,9 @@ import './ZoneCreator.css';
 import NumberInput from './NumberInput';
 import { GTA_BOUNDS, IMG_HEIGHT, IMG_WIDTH, gtaToLatLng, latLngToGta } from './mapCoords';
 import Notification, { useNotifications } from './Notification';
+import { type SessionLabels, sessionLabels } from './sessionLabels';
 
-// Héritage RP: map constants and GTA ↔ map conversions moved to mapCoords.ts (shared with PointPicker).
+// Fork patch: map constants and GTA ↔ map conversions moved to mapCoords.ts (shared with PointPicker).
 const GRID_SIZE = 10;
 
 export { gtaToLatLng, latLngToGta };
@@ -76,11 +77,11 @@ interface Zone {
   thickness: number;
   fillPattern: 'solid' | 'stripes' | 'dots';
   groundZ: number | null;
-  /** Héritage RP edit session: key of the zone given by the calling resource. */
+  /** Fork patch edit session: key of the zone given by the calling resource. */
   sessionKey?: string;
 }
 
-/** Héritage RP: a zone given by the resource that opened an edit session (see client.lua `editZone`). */
+/** Fork patch: a zone given by the resource that opened an edit session (see client.lua `editZone`). */
 export interface EditSessionZone {
   key: string;
   name: string;
@@ -90,19 +91,20 @@ export interface EditSessionZone {
   color?: string;
 }
 
-/** Héritage RP: another resource (hrp-zones) opened the creator to edit one zone and get it back. */
+/** Fork patch: another resource (hrp-zones) opened the creator to edit one zone and get it back. */
 export interface EditSession {
   sessionId: string;
   title: string;
-  /** Key of the zone sent back on « Valider »; the other zones are only shown for reference. */
+  /** Key of the zone sent back on Confirm; the other zones are only shown for reference. */
   editKey: string;
   zones: EditSessionZone[];
+  labels?: Partial<SessionLabels>;
 }
 
 const sessionZones = (session: EditSession): Zone[] =>
   session.zones.map((z, i) => ({
     id: `session-${z.key}`,
-    name: z.key === session.editKey ? z.name : `${z.name} (référence)`,
+    name: z.key === session.editKey ? z.name : `${z.name} (${sessionLabels(session.labels).reference})`,
     points: z.points.map((p, j) => ({
       id: `point-${z.key}-${j}`,
       gtaCoords: { x: p.x, y: p.y, z: null },
@@ -567,7 +569,7 @@ const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose, session = null }) =>
     };
   }, []);
 
-  // Héritage RP edit session: start on the edited zone.
+  // Fork patch edit session: start on the edited zone.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !session) return;
@@ -1449,12 +1451,12 @@ const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose, session = null }) =>
     onClose();
   };
 
-  // Héritage RP edit session: send the edited zone back (client.lua closes the creator and answers the caller).
+  // Fork patch edit session: send the edited zone back (client.lua closes the creator and answers the caller).
   const handleValidateSession = () => {
     if (!session) return;
     const zone = zones.find(z => z.sessionKey === session.editKey);
     if (!zone || zone.points.length < 3) {
-      notify.error('La zone doit avoir au moins 3 points');
+      notify.error(sessionLabels(session.labels).minPoints);
       return;
     }
     fetch(`https://${GetParentResourceName()}/editSessionResult`, {
@@ -1496,10 +1498,10 @@ const ZoneCreator: React.FC<ZoneCreatorProps> = ({ onClose, session = null }) =>
             </p>
             <div className="zone-session-actions">
               <button className="zone-btn zone-btn-confirm zone-session-btn" onClick={handleValidateSession}>
-                <Check size={14} /><span>Valider</span>
+                <Check size={14} /><span>{sessionLabels(session.labels).confirm}</span>
               </button>
               <button className="zone-btn zone-btn-cancel zone-session-btn" onClick={handleClose}>
-                <X size={14} /><span>Annuler</span>
+                <X size={14} /><span>{sessionLabels(session.labels).cancel}</span>
               </button>
             </div>
           </div>

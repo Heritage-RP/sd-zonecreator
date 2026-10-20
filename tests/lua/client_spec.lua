@@ -33,6 +33,7 @@ local function load(ped)
         handlers = {},
         events = {},      -- TriggerEvent calls
         messages = {},    -- SendNUIMessage actions
+        payloads = {},    -- SendNUIMessage messages
         focus = {},       -- SetNuiFocus calls
         cams = { rendered = false, destroyed = 0 },
         ped = {
@@ -73,14 +74,16 @@ local function load(ped)
         print = { error = function() end, info = function() end },
         notify = function() end,
         zones = { poly = function() return { remove = function() end } end },
+        locale = function() end,
     }
+    _G.locale = function(key) return 'L:' .. key end
     _G.RegisterNUICallback = function(name, fn) env.nui[name] = fn end
     _G.exports = setmetatable({}, { __call = function(_, name, fn) env.exports[name] = fn end })
     _G.AddEventHandler = function(name, fn) env.handlers[name] = fn end
     _G.RegisterNetEvent = function(name, fn) env.handlers[name] = fn end
     _G.TriggerEvent = function(name, ...) env.events[#env.events + 1] = { name = name, args = table.pack(...) } end
     _G.SetNuiFocus = function(a, b) env.focus[#env.focus + 1] = { a, b } end
-    _G.SendNUIMessage = function(msg) env.messages[#env.messages + 1] = msg.action end
+    _G.SendNUIMessage = function(msg) env.messages[#env.messages + 1] = msg.action; env.payloads[#env.payloads + 1] = msg end
     _G.GetGameTimer = function() return env.now end
     _G.GetFrameTime = function() return 0.016 end
 
@@ -290,6 +293,30 @@ scenario(function()
     check('resource stop: the pick session answers nil, focus released', #env.picks() == 3
         and env.picks()[3][1] == 'p2' and env.picks()[3][2] == nil and env.lastFocus() == false)
 end)
+
+-- 5. Session labels in the server's language (fork patch, PRODUCTION-SERVER#476): locales/*.json through ox_lib
+scenario(function()
+    local env = load()
+    env.exports.pickPoint(PICK)
+    local sent = env.payloads[#env.payloads]
+    check('pick session sent with its labels', sent.action == 'openPickSession' and sent.data.labels
+        and sent.data.labels.confirm == 'L:session_confirm' and sent.data.labels.clickPoint == 'L:session_click_point')
+    check('the caller\'s session table is left as it was', PICK.labels == nil and sent.data.title == 'PNJ')
+    env.exports.editZone({ sessionId = 'e1', title = 'T', editKey = 'a', zones = {} })
+    sent = env.payloads[#env.payloads]
+    check('edit session sent with its labels', sent.action == 'openEditSession'
+        and sent.data.labels.minPoints == 'L:session_min_points' and sent.data.labels.reference == 'L:session_reference')
+end)
+
+local function keys(path)
+    local f = assert(io.open(path, 'r')); local text = f:read('a'); f:close()
+    local out = {}
+    for key in text:gmatch('"([%w_]+)"%s*:') do out[#out + 1] = key end
+    table.sort(out)
+    return table.concat(out, ',')
+end
+check('locales/en.json and fr.json have the same keys', keys('locales/en.json') == keys('locales/fr.json')
+    and keys('locales/en.json') == 'session_cancel,session_click_point,session_confirm,session_min_points,session_reference')
 
 if failures > 0 then
     io.write(failures, ' failure(s)\n')
